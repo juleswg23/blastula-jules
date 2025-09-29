@@ -1,0 +1,137 @@
+
+
+# Make a simple email
+```{python}
+from great_tables import GT
+import os
+from plotnine import ggplot, aes, geom_point, labs
+import pandas as pd
+import base64
+from io import BytesIO
+```
+
+``` {python}
+
+# Simple text
+body_text = "<p>Hello, this is a test email with text, a plot, an image, and a table.</p>"
+
+```
+
+```{python}
+# Simple plot with plotnine
+df = pd.DataFrame({'x': [1, 2, 3], 'y': [3, 2, 1]})
+p = ggplot(df, aes('x', 'y')) + geom_point() + labs(title="A Simple Plot")
+buf = BytesIO()
+p.save(buf, format='png')
+
+buf.seek(0)
+plot_bytes = buf.read()
+plot_base64 = base64.b64encode(plot_bytes).decode('utf-8')
+
+plot_html = '<img src="cid:plot-image" alt="plotnine plot"/><br>'
+
+plot_html
+
+```
+
+
+```{python}
+# Simple image (embed as base64)
+image_path = "img/sunset.jpeg"
+
+with open(image_path, "rb") as img_file:
+  image_bytes = img_file.read()
+  image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+
+image_html = '<img src="cid:photo-image" alt="placeholder image"/><br>'
+
+image_html
+```
+
+
+```{python}
+# Simple table with GT
+table_df = pd.DataFrame({'A': [1, 2], 'B': [3, 4]})
+gt = GT(table_df)
+table_html = gt.as_raw_html()
+
+table_html
+
+```
+
+```{python}
+result_head = """
+<meta charset="utf-8">
+<title>Email Preview</title>
+"""
+
+# Wrap the email body in the HTML structure
+email_body = f"""<!doctype html>
+<html>
+  <head>
+{result_head}
+  </head>
+  <body>
+{body_text + plot_html + image_html + table_html}
+  </body>
+</html>"""
+
+# Write the email body to an HTML file for preview
+with open("email_preview.html", "w") as f:
+    f.write(email_body)
+
+email_body
+
+```
+
+# send email
+
+Their python API requires a quite intensive use of their types.
+This is mildly annoying but I can see why they would want to do it this way.
+```{python}
+import os
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import (
+    Mail,
+    Attachment,
+    FileContent,
+    FileName,
+    FileType,
+    Disposition,
+    ContentId,
+)
+
+username = "jules.walzergoldfeld@gmail.com"
+
+message = Mail(
+    from_email="jules.walzergoldfeld@posit.co",
+    to_emails=username,
+    subject="Sending with Twilio SendGrid is Fun",
+    html_content=email_body,
+)
+
+message.add_attachment(
+    Attachment(
+        content_id=ContentId("photo-image"),
+        file_name=FileName("photo.png"),
+        file_content=FileContent(image_base64),
+        disposition=Disposition("inline"),
+        file_type=FileType("png"),
+    )
+)
+
+message.add_attachment(
+    Attachment(
+        content_id=ContentId("plot-image"),
+        file_name=FileName("plot.png"),
+        file_content=FileContent(plot_base64),
+        disposition=Disposition("inline"),
+        file_type=FileType("png"),
+    )
+)
+
+
+sg = SendGridAPIClient(os.environ.get("SENDGRID_API_KEY"))
+sg.send(message)
+
+```

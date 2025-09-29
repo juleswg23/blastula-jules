@@ -1,0 +1,112 @@
+
+
+# Make a simple email
+```{python}
+from great_tables import GT
+import os
+from plotnine import ggplot, aes, geom_point, labs
+import pandas as pd
+import base64
+from io import BytesIO
+```
+
+``` {python}
+
+# Simple text
+body_text = "<p>Hello, this is a test email with text, a plot, an image, and a table.</p>"
+
+```
+
+```{python}
+# Simple plot with plotnine
+df = pd.DataFrame({'x': [1, 2, 3], 'y': [3, 2, 1]})
+p = ggplot(df, aes('x', 'y')) + geom_point() + labs(title="A Simple Plot")
+buf = BytesIO()
+p.save(buf, format='png')
+
+buf.seek(0)
+plot_bytes = buf.read()
+
+plot_html = '<img src="cid:plot-image" alt="plotnine plot"/><br>'
+
+plot_html
+
+```
+
+
+```{python}
+# Simple image (embed as base64)
+image_path = "img/sunset.jpeg"
+
+with open(image_path, "rb") as img_file:
+    image_bytes = img_file.read()
+
+image_html = '<img src="cid:photo-image" alt="placeholder image"/><br>'
+
+image_html
+```
+
+
+```{python}
+# Simple table with GT
+table_df = pd.DataFrame({'A': [1, 2], 'B': [3, 4]})
+gt = GT(table_df)
+table_html = gt.as_raw_html()
+
+table_html
+
+```
+
+```{python}
+result_head = """
+<meta charset="utf-8">
+<title>Email Preview</title>
+"""
+
+# Wrap the email body in the HTML structure
+email_body = f"""<!doctype html>
+<html>
+  <head>
+{result_head}
+  </head>
+  <body>
+{body_text + plot_html + image_html + table_html}
+  </body>
+</html>"""
+
+# Write the email body to an HTML file for preview
+with open("email_preview.html", "w") as f:
+    f.write(email_body)
+
+email_body
+
+```
+
+# Send with resend
+
+Requires the cid workaround to embed attachments, even though you have to use the inline param.
+```{python}
+
+import os
+from pathlib import Path
+from mailgun.client import Client
+
+key: str = os.environ["MAILGUN_API_KEY"]
+domain: str = os.environ["MAILGUN_DOMAIN"]
+client: Client = Client(auth=("api", key))
+
+data = {
+    "from": "Mailgun Sandbox <me@test.org>",
+    "to": "Jules W-G <jules.walzergoldfeld@posit.co>",
+    "subject": "Hello from python!",
+    "html": email_body,
+}
+
+files = [
+    ("inline", ("plot-image", plot_bytes)),
+    ("inline", ("photo-image", image_bytes))
+]
+
+req = client.messages.create(data=data, files=files, domain=domain)
+
+```
